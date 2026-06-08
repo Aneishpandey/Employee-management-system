@@ -1,0 +1,26 @@
+# Build output - we rebuild inside Docker
+target/
+
+# IDE files - not needed in container
+.idea/
+*.iml
+.vscode/
+
+# Git files - not needed in container
+.git/
+.gitignore
+
+# Test files - already run in CI
+src/test/
+
+# Documentation
+*.md
+
+# Local environment files - NEVER in container
+.env
+*.env
+application-local.properties
+
+# OS files
+.DS_Store
+Thumbs.db
