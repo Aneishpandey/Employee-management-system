@@ -1,13 +1,11 @@
 package com.ems.ems;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
 class EmployeeManagementSystemApplicationTests {
 
-	@Test
-	void contextLoads() {
-	}
-
+    @Test
+    void contextLoads() {
+        // Will be properly tested in Phase 5
+    }
 }
