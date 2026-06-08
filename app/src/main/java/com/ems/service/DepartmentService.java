@@ -22,9 +22,17 @@ public class DepartmentService {
                 .collect(Collectors.toList());
     }
 
+    public DepartmentDTO getDepartmentById(Long id) {
+        Department dept = departmentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                    "Department not found with id: " + id));
+        return toDTO(dept);
+    }
+
     public DepartmentDTO createDepartment(DepartmentDTO dto) {
         if (departmentRepository.existsByName(dto.getName())) {
-            throw new RuntimeException("Department already exists: " + dto.getName());
+            throw new RuntimeException(
+                "Department already exists: " + dto.getName());
         }
         Department dept = new Department();
         dept.setName(dto.getName());
@@ -34,7 +42,8 @@ public class DepartmentService {
 
     public DepartmentDTO updateDepartment(Long id, DepartmentDTO dto) {
         Department existing = departmentRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Department not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                    "Department not found with id: " + id));
         existing.setName(dto.getName());
         existing.setDescription(dto.getDescription());
         return toDTO(departmentRepository.save(existing));
@@ -42,7 +51,8 @@ public class DepartmentService {
 
     public void deleteDepartment(Long id) {
         if (!departmentRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Department not found with id: " + id);
+            throw new ResourceNotFoundException(
+                "Department not found with id: " + id);
         }
         departmentRepository.deleteById(id);
     }
@@ -52,7 +62,10 @@ public class DepartmentService {
         dto.setId(d.getId());
         dto.setName(d.getName());
         dto.setDescription(d.getDescription());
-        dto.setEmployeeCount(d.getEmployees() != null ? d.getEmployees().size() : 0);
+        // Safe null check — employees list might be empty
+        dto.setEmployeeCount(
+            d.getEmployees() != null ? d.getEmployees().size() : 0
+        );
         return dto;
     }
 }

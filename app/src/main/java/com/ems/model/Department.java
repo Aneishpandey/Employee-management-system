@@ -24,7 +24,8 @@ public class Department {
 
     private String description;
 
-    // One department has many employees
-    @OneToMany(mappedBy = "department", fetch = FetchType.LAZY)
+    // EAGER = load employees together with department in same query
+    // Fine for our use case since we always show employee count
+    @OneToMany(mappedBy = "department", fetch = FetchType.EAGER)
     private List<Employee> employees;
 }
