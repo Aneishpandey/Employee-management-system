@@ -6,6 +6,7 @@ class EmployeeManagementSystemApplicationTests {
 
     @Test
     void contextLoads() {
-        // Will be properly tested in Phase 5
+        // Integration context test will be added in later phase
+        // Keeping this lightweight to avoid requiring DB in unit tests
     }
 }
