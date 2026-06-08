@@ -1,0 +1,15 @@
+# Docker Compose - Full Stack Definition
+# This file will be completed in Phase 7
+# It will orchestrate: app + postgres + nginx
+
+version: "3.8"
+
+services:
+  # Application service - coming in Phase 7
+  # app:
+
+  # Database service - coming in Phase 3
+  # postgres:
+
+  # Web server - coming in Phase 7
+  # nginx:
