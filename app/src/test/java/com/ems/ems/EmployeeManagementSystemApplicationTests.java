@@ -6,7 +6,8 @@ class EmployeeManagementSystemApplicationTests {
 
     @Test
     void contextLoads() {
-        // Integration context test will be added in later phase
-        // Keeping this lightweight to avoid requiring DB in unit tests
+        // Lightweight test - no Spring context loading
+        // Full integration tests will be added separately
+        // This keeps the test suite fast and DB-independent
     }
 }
