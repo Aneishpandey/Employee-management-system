@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- ================================================================
+         PARENT: Spring Boot handles all dependency versions for us.
+         We just list what we need — no version numbers required.
+         Spring Boot ensures everything is compatible with each other.
+    ================================================================ -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.3.4</version>
+        <relativePath/>
+    </parent>
+
+    <!-- ================================================================
+         PROJECT IDENTITY
+    ================================================================ -->
+    <groupId>com.ems</groupId>
+    <artifactId>employee-management-system</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>employee-management-system</name>
+    <description>Production-Ready Employee Management Platform</description>
+
+    <properties>
+        <java.version>21</java.version>
+    </properties>
+
+    <dependencies>
+
+        <!-- ============================================================
+             SPRING WEB
+             Gives us: @RestController, @GetMapping, ResponseEntity etc.
+             This is what makes our app a web server that handles HTTP.
+        ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- ============================================================
+             SPRING DATA JPA
+             Gives us: @Entity, @Repository, JpaRepository etc.
+             JPA = Java Persistence API. Lets us talk to the database
+             using Java objects instead of raw SQL.
+        ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <!-- ============================================================
+             SPRING SECURITY
+             Gives us: @EnableWebSecurity, SecurityFilterChain etc.
+             Handles authentication, authorization, password encoding.
+        ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
+        <!-- ============================================================
+             VALIDATION
+             Gives us: @NotBlank, @Email, @Valid etc.
+             Validates incoming request data automatically.
+        ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- ============================================================
+             ACTUATOR
+             Gives us: /actuator/health, /actuator/metrics etc.
+             Built-in monitoring endpoints — critical for DevOps.
+        ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- ============================================================
+             POSTGRESQL DRIVER
+             Allows Java to connect and talk to PostgreSQL database.
+             Without this, JPA has no way to reach the DB.
+        ============================================================ -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- ============================================================
+             FLYWAY
+             Database migration tool. Manages SQL schema changes
+             in a versioned, controlled way. Phase 4 topic.
+        ============================================================ -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
+        <!-- ============================================================
+             LOMBOK
+             A code generator. @Data auto-creates getters/setters.
+             @RequiredArgsConstructor auto-creates constructors.
+             Saves hundreds of lines of boilerplate Java code.
+        ============================================================ -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- ============================================================
+             TESTING
+             JUnit 5 + Mockito for unit tests. Phase 5 topic.
+        ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <plugins>
+
+            <!-- ========================================================
+                 SPRING BOOT MAVEN PLUGIN
+                 This is what creates the fat JAR (jar with everything
+                 bundled inside). Running: mvn package → creates app.jar
+            ======================================================== -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+
+            <!-- ========================================================
+                 MAVEN COMPILER PLUGIN
+                 Tells Maven to compile using Java 21.
+            ======================================================== -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>21</source>
+                    <target>21</target>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+
+            <!-- ========================================================
+                 CHECKSTYLE PLUGIN
+                 Enforces code style rules. Used in Phase 8 CI pipeline.
+            ======================================================== -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>3.3.1</version>
+                <configuration>
+                    <configLocation>google_checks.xml</configLocation>
+                    <failsOnError>false</failsOnError>
+                    <consoleOutput>true</consoleOutput>
+                </configuration>
+            </plugin>
+
+        </plugins>
+    </build>
+
+</project>
