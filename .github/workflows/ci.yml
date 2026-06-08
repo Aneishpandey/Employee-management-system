@@ -1,0 +1,117 @@
+name: CI Pipeline
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  push:
+    branches:
+      - develop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ================================================================
+# Explicit permissions — required for test results publishing
+# ================================================================
+permissions:
+  contents:      read
+  checks:        write   # needed by publish-unit-test-result-action
+  pull-requests: write   # needed to comment test results on PR
+
+jobs:
+
+  ci-pipeline:
+    name: Build, Test & Scan
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB:       employee_db
+          POSTGRES_USER:     admin
+          POSTGRES_PASSWORD: admin123
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: ☕ Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: 📦 Cache Maven Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('app/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: 🔨 Build Application
+        working-directory: app
+        run: mvn clean package -DskipTests -B
+
+      - name: 🧪 Run Unit Tests
+        working-directory: app
+        run: mvn test -B
+        env:
+          SPRING_DATASOURCE_URL:      jdbc:postgresql://localhost:5432/employee_db
+          SPRING_DATASOURCE_USERNAME: admin
+          SPRING_DATASOURCE_PASSWORD: admin123
+
+      - name: 📊 Publish Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: app/target/surefire-reports/*.xml
+
+      - name: 🎨 Checkstyle
+        working-directory: app
+        run: mvn checkstyle:check -B
+        continue-on-error: true
+
+      - name: 🔒 Trivy Scan - Filesystem
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: 'app'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+      - name: 🐳 Build Docker Image
+        working-directory: app
+        run: |
+          docker build -t employee-app:${{ github.sha }} .
+          docker build -t employee-app:latest .
+
+      - name: 🔒 Trivy Scan - Docker Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'image'
+          image-ref: 'employee-app:latest'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+      - name: 📤 Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: app-jar-${{ github.sha }}
+          path: app/target/*.jar
+          retention-days: 7
