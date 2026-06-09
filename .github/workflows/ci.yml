@@ -173,7 +173,7 @@ jobs:
 
     environment:
       name: development
-      url: http://${{ secrets.EC2_HOST }}
+      url: http://65.2.140.189
 
     steps:
 
