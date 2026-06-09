@@ -1,4 +1,4 @@
-name: CI Pipeline
+name: CI/CD Pipeline
 
 on:
   pull_request:
@@ -13,16 +13,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# ================================================================
-# Explicit permissions — required for test results publishing
-# ================================================================
 permissions:
   contents:      read
-  checks:        write   # needed by publish-unit-test-result-action
-  pull-requests: write   # needed to comment test results on PR
+  checks:        write
+  pull-requests: write
 
 jobs:
 
+  # ============================================================
+  # JOB 1: CI — Build, Test, Scan
+  # ============================================================
   ci-pipeline:
     name: Build, Test & Scan
     runs-on: ubuntu-latest
@@ -95,15 +95,13 @@ jobs:
 
       - name: 🐳 Build Docker Image
         working-directory: app
-        run: |
-          docker build -t employee-app:${{ github.sha }} .
-          docker build -t employee-app:latest .
+        run: docker build -t employee-app:${{ github.sha }} .
 
       - name: 🔒 Trivy Scan - Docker Image
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'image'
-          image-ref: 'employee-app:latest'
+          image-ref: employee-app:${{ github.sha }}
           format: 'table'
           severity: 'CRITICAL,HIGH'
           exit-code: '0'
@@ -116,17 +114,21 @@ jobs:
           path: app/target/*.jar
           retention-days: 7
 
-
-  # ==============================================================
-  # JOB 2: Push to ECR (only on develop branch, not PRs)
-  # ==============================================================
+  # ============================================================
+  # JOB 2: Push to ECR
+  # Only runs on push to develop (not PRs)
+  # ============================================================
   push-to-ecr:
     name: Push Image to ECR
     runs-on: ubuntu-latest
-    needs: ci-pipeline          # only runs if ci-pipeline passes
+    needs: ci-pipeline
     if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
 
+    outputs:
+      image-tag: ${{ steps.build-push.outputs.image-tag }}
+
     steps:
+
       - name: 📥 Checkout Code
         uses: actions/checkout@v4
 
@@ -142,18 +144,120 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: 🐳 Build and Push to ECR
+        id: build-push
         env:
           ECR_REGISTRY:   ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_DEV }}
-          IMAGE_TAG:       ${{ github.sha }}
+          IMAGE_TAG:      ${{ github.sha }}
         run: |
-          # Build with two tags: commit SHA (unique) and latest
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
-                       -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
-                       ./app
+          docker build \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            ./app
 
-          # Push both tags
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-          echo "Image pushed: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          echo "image-tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "Pushed: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+  # ============================================================
+  # JOB 3: Deploy to DEV
+  # Only runs after successful ECR push
+  # ============================================================
+  deploy-dev:
+    name: Deploy to DEV
+    runs-on: ubuntu-latest
+    needs: push-to-ecr
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+
+    environment:
+      name: development
+      url: http://${{ secrets.EC2_HOST }}
+
+    steps:
+
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:        ${{ secrets.EC2_HOST }}
+          username:    ${{ secrets.EC2_USER }}
+          key:         ${{ secrets.EC2_SSH_KEY }}
+          timeout:     120s
+          script: |
+            # Set PATH explicitly (important for finding aws, docker)
+            export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin
+
+            echo "=== Starting DEV Deployment ==="
+            echo "Server: $(hostname)"
+            echo "Time:   $(date)"
+
+            # Read secrets from SSM
+            DB_PASSWORD=$(aws ssm get-parameter \
+                --name "/employee/prod/db/password" \
+                --with-decryption \
+                --region ap-south-1 \
+                --query 'Parameter.Value' \
+                --output text)
+
+            DB_USERNAME=$(aws ssm get-parameter \
+                --name "/employee/prod/db/username" \
+                --region ap-south-1 \
+                --query 'Parameter.Value' \
+                --output text)
+
+            DB_URL=$(aws ssm get-parameter \
+                --name "/employee/prod/db/url" \
+                --region ap-south-1 \
+                --query 'Parameter.Value' \
+                --output text)
+
+            # Login to ECR
+            aws ecr get-login-password --region ap-south-1 | \
+                docker login \
+                --username AWS \
+                --password-stdin \
+                208549351005.dkr.ecr.ap-south-1.amazonaws.com
+
+            # Pull latest image
+            docker pull 208549351005.dkr.ecr.ap-south-1.amazonaws.com/employee-app-dev:latest
+
+            # Stop old container
+            docker stop employee_app 2>/dev/null || true
+            docker rm   employee_app 2>/dev/null || true
+
+            # Start new container
+            docker run -d \
+                --name employee_app \
+                --restart unless-stopped \
+                -p 8083:8083 \
+                -e SPRING_DATASOURCE_URL=$DB_URL \
+                -e SPRING_DATASOURCE_USERNAME=$DB_USERNAME \
+                -e SPRING_DATASOURCE_PASSWORD=$DB_PASSWORD \
+                -e SERVER_PORT=8083 \
+                208549351005.dkr.ecr.ap-south-1.amazonaws.com/employee-app-dev:latest
+
+            # Health check
+            echo "Waiting for app to start..."
+            for i in $(seq 1 12); do
+                HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+                    http://localhost:8083/actuator/health 2>/dev/null || echo "000")
+                if [ "$HTTP" = "200" ]; then
+                    echo "App is healthy! ✅"
+                    break
+                fi
+                if [ $i -eq 12 ]; then
+                    echo "ERROR: Health check failed!"
+                    docker logs --tail 30 employee_app
+                    exit 1
+                fi
+                echo "Attempt $i/12 (HTTP $HTTP) waiting 10s..."
+                sleep 10
+            done
+
+            echo "=== DEV Deployment Complete! ==="
+            echo "URL: http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)"
+            docker ps | grep employee
